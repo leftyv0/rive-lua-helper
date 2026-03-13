@@ -8,13 +8,31 @@ argument-hint: "[protocol-type] [script-name]"
 
 You are an expert Rive Luau script author. Rive uses Luau (Roblox's typed Lua variant) for scripting interactive animations. When writing Rive scripts, always use correct protocol patterns, lifecycle hooks, type annotations, and API calls.
 
-Scripts are stored in `scripts/{protocol-type}/` as `.luau` files. Use the server API at `/api/scripts` for CRUD operations if the playground is running, otherwise write files directly.
+Scripts are stored as `.luau` files in the `scripts/` directory (flat — no subdirectories).
+
+## Skill File Rules
+
+1. **Never modify this skill file without asking first.** Before making any change to the skill, explain exactly what you plan to add, remove, or update and wait for approval.
+2. **Source of truth:** The official Rive scripting API documentation at https://rive.app/docs/scripting/getting-started is the authoritative reference. When writing scripts, if the skill file lacks information about an API, fetch and consult the official docs before guessing. If the skill file contradicts the official docs, flag the discrepancy to the user rather than silently following either source.
 
 ## Arguments
 
 If `$ARGUMENTS` is provided, parse it as `[protocol-type] [script-name]`. Create a new script of that protocol type with that name. If only a protocol type is given, ask for a name. If no arguments, ask what the user wants to build.
 
 Valid protocol types: `node`, `layout`, `converter`, `path-effect`, `transition-condition`, `listener-action`, `util`, `test`
+
+---
+
+## Language & Runtime Rules
+
+| Rule | Detail |
+|------|--------|
+| Strict mode | Every script is implicitly `--!strict` — no need to write it, but all types must be correct |
+| Pure Luau only | No Roblox libraries, no external dependencies |
+| 32-bit safe | Numbers must be safe for 32-bit environments unless explicitly told otherwise |
+| No file extensions | Scripts are referenced (e.g. in `require`) without `.lua` or `.luau` suffixes |
+| No folder paths | No slashes in script names — scripts are flat, no directories |
+| Avoid `math.clamp` | May cause runtime errors ("Expected type table, got 'number'"). Use manual clamping instead: `if x < 0 then x = 0 end; if x > 1 then x = 1 end` |
 
 ---
 
@@ -54,14 +72,18 @@ Key rules:
 - Best for: design-time configuration (size, color, speed, etc.)
 
 **B. ViewModel (`context:viewModel()`)** — Live runtime data bound to the artboard.
+- Use ViewModels, NOT State Machine inputs — state machine inputs are deprecated for data flow.
 - Retrieved inside `init` via the Context object.
+- **Store VM on `self`** — never keep a ViewModel only in a local variable or it will be garbage collected.
+- When data-binding strings to text, bind to the **Text Run** child, not the Text object.
 - Use `addListener` to react to changes, call `context:markNeedsUpdate()` to schedule a re-draw.
 - Best for: dynamic app data (score, username, health, etc.)
 
 ```luau
-local vm = context:viewModel()
-if vm then
-  local health = vm:getNumber("health")
+-- CORRECT: store on self to prevent garbage collection
+self.vm = context:viewModel()
+if self.vm then
+  local health = self.vm:getNumber("health")
   if health then
     health:addListener(function()
       context:markNeedsUpdate()
@@ -362,15 +384,41 @@ end
 | Method | Description |
 |--------|-------------|
 | `Paint.new(): Paint` | Create paint with defaults |
-| `Paint.with({ ... }): Paint` | Create paint with initial props (style, color, thickness, join, cap, blendMode) |
+| `Paint.with({ ... }): Paint` | Create paint with initial props (style, color, thickness, join, cap, blendMode, gradient) |
 | `paint.style` | `"fill"` or `"stroke"` |
 | `paint.color` | The paint Color |
+| `paint.gradient` | Gradient applied to fill (if present) |
+| `paint.feather` | Edge softness / blur amount (0 = sharp) |
 | `paint.thickness` | Stroke width |
 | `paint.join` | `"miter"` / `"round"` / `"bevel"` |
 | `paint.cap` | `"butt"` / `"round"` / `"square"` |
 | `paint.blendMode` | `"srcOver"` / `"screen"` / `"multiply"` / etc. |
-| `paint:linearGradient(sx, sy, ex, ey, colors, stops)` | Linear gradient shader |
-| `paint:radialGradient(cx, cy, radius, colors, stops)` | Radial gradient shader |
+| `paint:copy(overrides): Paint` | Clone paint with optional property overrides |
+
+### Gradient
+| Method | Description |
+|--------|-------------|
+| `Gradient.linear(from: Vector, to: Vector, stops: { GradientStop }): Gradient` | Create a linear gradient between two points |
+| `Gradient.radial(center: Vector, radius: number, stops: { GradientStop }): Gradient` | Create a radial gradient from a center point |
+
+**GradientStop** is a table with two fields:
+| Field | Type | Description |
+|-------|------|-------------|
+| `position` | `number` | Position along the gradient (0 = start, 1 = end) |
+| `color` | `Color` | Color at this stop |
+
+```luau
+-- Example: vertical gradient from red (bottom) to blue (top)
+local grad = Gradient.linear(
+  Vector.xy(0, 100),
+  Vector.xy(0, 0),
+  {
+    { position = 0, color = Color.rgb(255, 0, 0) },
+    { position = 1, color = Color.rgb(0, 0, 255) },
+  }
+)
+local paint = Paint.with({ style = "fill", gradient = grad })
+```
 
 ### Color
 | Method | Description |
@@ -471,13 +519,19 @@ end
 ## Common Pitfalls
 
 - **DO NOT** use `Vec2D` — the correct global is `Vector` (e.g. `Vector.xy(10, 20)`)
-- **DO NOT** use `Color.hex()` — it does not exist. Use `Color.rgb(r, g, b)` with 0–255 values.
+- `Color.hex('#RRGGBB')` is supported per official docs. `Color.rgb(r, g, b)` with 0–255 values also works.
+- **DO NOT** read `color.r / .g / .b` from an `Input<Color>` to decompose it — assign the color directly (e.g. `paint.color = self.color`) then set `.opacity` separately if needed.
+- **DO NOT** use `math.clamp()` — it causes runtime errors. Use manual `if` clamping instead.
+- **DO NOT** use `paint:linearGradient()` or `paint:radialGradient()` — these methods do not exist. Use `Gradient.linear()` / `Gradient.radial()` constructors and assign via `paint.gradient` or `Paint.with({ gradient = grad })`.
 - **DO NOT** pass separate `(x, y)` numbers to `moveTo`/`lineTo` — pass a `Vector`.
 - **DO NOT** mutate a Path and draw it in the same frame — mutate in `advance`/`update`, draw in `draw`.
 - **DO NOT** use `artboard:node()` in the factory — the factory returns a plain table.
 - **DO NOT** add `context` parameter to `update` or `draw` — they don't receive it.
 - **DO NOT** use `rive.` namespace prefix — `Vector`, `Path`, `Paint`, `Color` are direct globals.
 - **DO NOT** use Roblox libraries — Rive Luau is pure Luau.
+- **DO NOT** use State Machine inputs for data flow — use ViewModels instead (SM inputs are deprecated).
+- **DO NOT** store a ViewModel in a local variable only — store it on `self` or it will be garbage collected.
+- **DO NOT** bind strings to a Text object — bind to the **Text Run** child.
 - **DO** call `context:markNeedsUpdate()` from a ViewModel listener to trigger a redraw.
 - **DO** use `Input<T>` for designer-editable values, ViewModel for runtime data.
 - **DO** return `false` from `advance` when content is static to save CPU.
@@ -488,16 +542,25 @@ end
 
 ## Script File Organization
 
+Scripts live in a **flat** `scripts/` directory — no subdirectories, no slashes in names.
+
 ```
 scripts/
-  node/           -- Node scripts (per-node behavior, drawing, pointer events)
-  layout/         -- Layout scripts (custom measure/resize)
-  converter/      -- Converters (value transformation for bindings)
-  path-effect/    -- Path effects (modify geometry before render)
-  transition-condition/  -- State machine transition guards
-  listener-action/       -- Event-driven actions
-  util/           -- Shared modules (require-able)
-  test/           -- Test scripts (Tester framework)
+  my-node-script.luau
+  my-layout.luau
+  my-converter.luau
+  shared-utils.luau
 ```
 
-When creating a script, always place it in the correct protocol directory and use the `.luau` extension.
+When creating a script, place it directly in `scripts/` with a descriptive kebab-case name and the `.luau` extension. When referencing scripts (e.g. in `require`), omit the file extension.
+
+---
+
+## After Writing Code
+
+Always run these steps after writing or modifying a script:
+
+| Step | Why |
+|------|-----|
+| Run `script_diagnostics` | Catches type errors and warnings before committing |
+| Run `recompile_all_scripts` | Commits changes to the Luau VM so they take effect |
