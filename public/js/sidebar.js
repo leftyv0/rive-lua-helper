@@ -76,7 +76,7 @@ async function openScript(type, name) {
 
   try {
     const data = await ApiClient.getScript(type, name);
-    openTab(type, name, data.content);
+    openTab(type, name, data.content, data.modified);
   } catch (e) {
     showToast('Failed to open script: ' + e.message, 'error');
   }

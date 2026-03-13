@@ -246,6 +246,55 @@ body {
   color: var(--error);
 }
 
+/* === Change Banner === */
+
+.change-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--bg-active);
+  border-bottom: 1px solid var(--warning);
+  font-size: 12px;
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.change-banner button {
+  background: none;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  padding: 2px 10px;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.change-banner button:hover {
+  background: rgba(255, 203, 107, 0.15);
+}
+
+/* === Tab Copy Button === */
+
+.tab-copy {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tab:hover .tab-copy,
+.tab.active .tab-copy {
+  opacity: 1;
+}
+
+.tab-copy:hover {
+  color: var(--success);
+}
+
 #editor-container {
   flex: 1;
   overflow: hidden;
@@ -304,6 +353,19 @@ body {
   color: var(--text-muted);
   flex-shrink: 0;
   justify-content: space-between;
+  gap: 12px;
+}
+
+.git-status {
+  font-size: 11px;
+}
+
+.git-status.clean {
+  color: var(--success);
+}
+
+.git-status.dirty {
+  color: var(--warning);
 }
 
 /* === API Reference Panel === */

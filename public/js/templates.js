@@ -1,193 +1,209 @@
-// All 8 Rive Luau protocol scaffolds
+// All 8 Rive Luau protocol scaffolds — correct factory pattern
 
 const TEMPLATES = {
   node: `-- Node Script
--- Runs on a node each frame. Has access to self (the node), context, and renderer.
+-- Attached to a Node. Can draw, animate, and respond to pointer events.
 
-return function(artboard: Artboard): Node
-    local node = artboard:node("NodeName")
+-- Define the script's data and inputs.
+type MyNode = {
+    path: Path,
+    paint: Paint,
+}
 
-    function node:init(context: Context)
-        -- Called once when the script is first attached
-        -- Use context:viewModel() to access data bindings
-    end
+-- Called once when the script initializes.
+function init(self: MyNode, context: Context): boolean
+    return true
+end
 
-    function node:advance(dt: number, context: Context)
-        -- Called every frame with delta time
-        -- Good for animation logic, state machines
-    end
+-- Called every frame to advance the simulation.
+-- 'seconds' is the elapsed time since the previous frame.
+function advance(self: MyNode, seconds: number): boolean
+    return false -- return true to keep advancing
+end
 
-    function node:update(context: Context)
-        -- Called when the node's transform needs updating
-        -- Modify position, rotation, scale here
-    end
+-- Called when any input value changes.
+function update(self: MyNode) end
 
-    function node:draw(renderer: Renderer, context: Context)
-        -- Called when rendering the node
-        -- Use renderer:drawPath(), renderer:drawImage(), etc.
-    end
+-- Called every frame (after advance) to render the content.
+function draw(self: MyNode, renderer: Renderer)
+    renderer:drawPath(self.path, self.paint)
+end
 
-    function node:pointerDown(x: number, y: number, context: Context)
-        -- Called when a pointer press occurs on this node
-    end
-
-    function node:pointerUp(x: number, y: number, context: Context)
-        -- Called when a pointer release occurs on this node
-    end
-
-    function node:pointerMove(x: number, y: number, context: Context)
-        -- Called when a pointer moves over this node
-    end
-
-    return node
+-- Return a factory function that Rive uses to build the Node instance.
+return function(): Node<MyNode>
+    return {
+        path    = Path.new(),
+        paint   = Paint.new(),
+        init    = init,
+        advance = advance,
+        update  = update,
+        draw    = draw,
+    }
 end
 `,
 
   layout: `-- Layout Script
--- Extends Node with measure and resize for custom layout behavior.
+-- Like a node script but also participates in layout (measure + resize).
 
-return function(artboard: Artboard): Layout
-    local layout = artboard:node("LayoutName")
+-- Define the script's data and inputs.
+type MyLayout = {
+    path: Path,
+    paint: Paint,
+}
 
-    function layout:init(context: Context)
-        -- Called once when the script is first attached
-    end
+-- Called once when the script initializes.
+function init(self: MyLayout, context: Context): boolean
+    return true
+end
 
-    function layout:measure(width: number, widthMode: LayoutMeasureMode,
-                            height: number, heightMode: LayoutMeasureMode,
-                            context: Context): (number, number)
-        -- Return desired (width, height) based on content
-        -- widthMode/heightMode: "exactly" | "atMost" | "undefined"
-        return width, height
-    end
+-- Return desired (width, height) based on content.
+-- widthMode/heightMode: "exactly" | "atMost" | "undefined"
+function measure(self: MyLayout, width: number, widthMode: LayoutMeasureMode,
+                 height: number, heightMode: LayoutMeasureMode,
+                 context: Context): (number, number)
+    return width, height
+end
 
-    function layout:resize(width: number, height: number, context: Context)
-        -- Called after layout is resolved with final dimensions
-        -- Position children here
-    end
+-- Called after layout resolves with final dimensions.
+function resize(self: MyLayout, width: number, height: number, context: Context)
+    -- Position children here
+end
 
-    function layout:advance(dt: number, context: Context)
-        -- Called every frame with delta time
-    end
+function advance(self: MyLayout, seconds: number): boolean
+    return false
+end
 
-    function layout:update(context: Context)
-        -- Called when transform needs updating
-    end
+function update(self: MyLayout) end
 
-    function layout:draw(renderer: Renderer, context: Context)
-        -- Called when rendering
-    end
+function draw(self: MyLayout, renderer: Renderer)
+    renderer:drawPath(self.path, self.paint)
+end
 
-    return layout
+return function(): Layout<MyLayout>
+    return {
+        path    = Path.new(),
+        paint   = Paint.new(),
+        init    = init,
+        measure = measure,
+        resize  = resize,
+        advance = advance,
+        update  = update,
+        draw    = draw,
+    }
 end
 `,
 
   converter: `-- Converter Script
--- Transforms values between view model properties and display values.
+-- Transforms values between ViewModel bindings and display values.
 
-return function(): Converter
-    local converter = {}
+type MyConverter = {}
 
-    function converter:init(context: Context)
-        -- Called once when the converter is first attached
-        -- Access context:viewModel() for data bindings
-    end
+function init(self: MyConverter, context: Context): boolean
+    return true
+end
 
-    function converter:convert(value: any, context: Context): any
-        -- Transform the source value for display
-        -- Example: format a number as currency, convert units, etc.
-        return value
-    end
+-- Transform the source value for display.
+function convert(self: MyConverter, value: any, context: Context): any
+    return value
+end
 
-    function converter:reverseConvert(value: any, context: Context): any
-        -- Transform a display value back to source format
-        -- Used for two-way bindings
-        return value
-    end
+-- Transform a display value back to source format (for two-way bindings).
+function reverseConvert(self: MyConverter, value: any, context: Context): any
+    return value
+end
 
-    return converter
+return function(): Converter<MyConverter>
+    return {
+        init           = init,
+        convert        = convert,
+        reverseConvert = reverseConvert,
+    }
 end
 `,
 
   "path-effect": `-- Path Effect Script
 -- Modifies paths before they are rendered (dashes, distortions, etc).
 
-return function(artboard: Artboard): PathEffect
-    local effect = {}
+type MyEffect = {}
 
-    function effect:init(context: Context)
-        -- Called once when the effect is first attached
-    end
+function init(self: MyEffect, context: Context): boolean
+    return true
+end
 
-    function effect:update(context: Context)
-        -- Called when the effect parameters change
-        -- Recalculate effect state here
-    end
+function update(self: MyEffect) end
 
-    function effect:advance(dt: number, context: Context)
-        -- Called every frame with delta time
-        -- Animate effect parameters here
-    end
+function advance(self: MyEffect, seconds: number): boolean
+    return false
+end
 
-    function effect:effect(path: Path, context: Context): Path
-        -- Transform the input path and return the modified path
-        -- Use path:contours() to iterate segments
-        local result = Path.new()
-        for _, contour in path:contours() do
-            for _, segment in contour:segments() do
-                -- Process each segment
-            end
+-- Transform the input path and return the modified path.
+function effect(self: MyEffect, path: Path, context: Context): Path
+    local result = Path.new()
+    for _, contour in path:contours() do
+        for _, segment in contour:segments() do
+            -- Process each segment
         end
-        return result
     end
+    return result
+end
 
-    return effect
+return function(): PathEffect<MyEffect>
+    return {
+        init    = init,
+        update  = update,
+        advance = advance,
+        effect  = effect,
+    }
 end
 `,
 
   "transition-condition": `-- Transition Condition Script
 -- Evaluates whether a state machine transition should fire.
 
-return function(): TransitionCondition
-    local condition = {}
+type MyCondition = {}
 
-    function condition:init(context: Context)
-        -- Called once when the condition is first attached
-        -- Set up any state needed for evaluation
-    end
+function init(self: MyCondition, context: Context): boolean
+    return true
+end
 
-    function condition:evaluate(context: Context): boolean
-        -- Return true to allow the transition, false to block it
-        -- Called each frame while the source state is active
-        return false
-    end
+-- Return true to allow the transition, false to block it.
+-- Called each frame while the source state is active.
+function evaluate(self: MyCondition, context: Context): boolean
+    return false
+end
 
-    return condition
+return function(): TransitionCondition<MyCondition>
+    return {
+        init     = init,
+        evaluate = evaluate,
+    }
 end
 `,
 
   "listener-action": `-- Listener Action Script
 -- Runs custom logic when a Rive listener event fires.
 
-return function(): ListenerAction
-    local action = {}
+type MyAction = {}
 
-    function action:init(context: Context)
-        -- Called once when the action is first attached
-    end
+function init(self: MyAction, context: Context): boolean
+    return true
+end
 
-    function action:perform(context: Context)
-        -- Called each time the listener event fires
-        -- Use context:viewModel() to read/write state
-    end
+-- Called each time the listener event fires.
+function perform(self: MyAction, context: Context)
+    -- Use context:viewModel() to read/write state
+end
 
-    return action
+return function(): ListenerAction<MyAction>
+    return {
+        init    = init,
+        perform = perform,
+    }
 end
 `,
 
   util: `-- Util Module
--- Shared utility functions importable by other scripts.
--- Rive Luau uses \`require\` to import modules.
+-- Shared utility functions importable by other scripts via require.
 
 local M = {}
 

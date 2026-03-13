@@ -195,48 +195,30 @@ app.delete('/api/scripts/:type/:name', (req, res) => {
   res.json({ ok: true });
 });
 
-// --- SSE: push file-change events to connected clients ---
+// Check modified timestamp for a script (used by frontend polling)
+app.get('/api/scripts/:type/:name/modified', (req, res) => {
+  const { type, name } = req.params;
+  if (!validateType(type)) return res.status(400).json({ error: 'Invalid script type' });
+  if (!validateName(name)) return res.status(400).json({ error: 'Invalid script name' });
 
-const sseClients = new Set();
+  const filePath = path.join(SCRIPTS_DIR, type, name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Script not found' });
 
-app.get('/api/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  });
-  res.write('data: connected\n\n');
-  sseClients.add(res);
-  req.on('close', () => sseClients.delete(res));
+  const stat = fs.statSync(filePath);
+  res.json({ modified: stat.mtime.toISOString() });
 });
 
-function broadcast(event, payload) {
-  const msg = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
-  for (const client of sseClients) {
-    client.write(msg);
-  }
-}
-
-// --- File watcher: monitor scripts/ for changes ---
-
-let debounceTimer = null;
-
-for (const type of ALLOWED_TYPES) {
-  const dir = path.join(SCRIPTS_DIR, type);
+// Git status for the repo
+app.get('/api/git/status', (req, res) => {
+  const { execSync } = require('child_process');
   try {
-    fs.watch(dir, { persistent: true }, (eventType, filename) => {
-      if (!filename || !filename.endsWith('.luau')) return;
-      // Debounce rapid events (editors often fire multiple events per save)
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        console.log(`[watcher] ${eventType} ${type}/${filename}`);
-        broadcast('scripts-changed', { type, filename, eventType });
-      }, 250);
-    });
+    const output = execSync('git status --porcelain', { cwd: __dirname, encoding: 'utf-8' });
+    const lines = output.trim().split('\n').filter(Boolean);
+    res.json({ clean: lines.length === 0, changed: lines.length, files: lines.slice(0, 20) });
   } catch {
-    // Directory may not exist yet — ignore
+    res.json({ clean: null, changed: 0, files: [] });
   }
-}
+});
 
 app.listen(PORT, () => {
   console.log(`Rive Scripts playground running at http://localhost:${PORT}`);

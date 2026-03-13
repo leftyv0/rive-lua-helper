@@ -20,27 +20,23 @@ const API_REFERENCE = [
     title: 'Path',
     entries: [
       { sig: 'Path.new(): Path', desc: 'Create a new empty path.' },
-      { sig: 'path:moveTo(x: number, y: number)', desc: 'Start a new contour at (x, y).' },
-      { sig: 'path:lineTo(x: number, y: number)', desc: 'Add a line segment to (x, y).' },
-      { sig: 'path:cubicTo(ox: number, oy: number, ix: number, iy: number, x: number, y: number)', desc: 'Add a cubic Bézier curve.' },
+      { sig: 'path:moveTo(vec: Vector)', desc: 'Start a new contour at the vector position.' },
+      { sig: 'path:lineTo(vec: Vector)', desc: 'Add a line segment to the vector position.' },
+      { sig: 'path:cubicTo(out: Vector, in: Vector, to: Vector)', desc: 'Add a cubic Bézier curve.' },
       { sig: 'path:close()', desc: 'Close the current contour.' },
-      { sig: 'path:addRect(x: number, y: number, w: number, h: number)', desc: 'Add a rectangle sub-path.' },
-      { sig: 'path:addOval(x: number, y: number, w: number, h: number)', desc: 'Add an oval sub-path inscribed in the given rect.' },
-      { sig: 'path:addRoundRect(x: number, y: number, w: number, h: number, rx: number, ry: number)', desc: 'Add a rounded rectangle sub-path.' },
+      { sig: 'path:reset()', desc: 'Clear all contours. Do NOT reset and draw in the same frame.' },
       { sig: 'path:contours(): iterator', desc: 'Iterate over all contours in the path. Each contour has :segments().' },
       { sig: 'path:measure(): PathMeasure', desc: 'Get a PathMeasure for calculating positions and tangents along the path.' },
       { sig: 'pathMeasure:length(): number', desc: 'Total length of the measured path.' },
-      { sig: 'pathMeasure:position(distance: number): Vec2D', desc: 'Get position at the given distance along the path.' },
-      { sig: 'pathMeasure:tangent(distance: number): Vec2D', desc: 'Get tangent at the given distance along the path.' },
-      { sig: 'path:reset()', desc: 'Clear all contours from the path.' }
+      { sig: 'pathMeasure:position(distance: number): Vector', desc: 'Get position at the given distance along the path.' },
+      { sig: 'pathMeasure:tangent(distance: number): Vector', desc: 'Get tangent at the given distance along the path.' }
     ]
   },
   {
     title: 'Paint',
     entries: [
       { sig: 'Paint.new(): Paint', desc: 'Create a new paint with default settings.' },
-      { sig: 'paint:with({ ... }): Paint', desc: 'Create a copy with modified properties: style, color, thickness, join, cap, blendMode.' },
-      { sig: 'paint:copy(): Paint', desc: 'Create an exact copy of this paint.' },
+      { sig: 'Paint.with({ ... }): Paint', desc: 'Create a paint with initial properties: style, color, thickness, join, cap, blendMode.' },
       { sig: 'paint.style: PaintStyle', desc: '"fill" | "stroke" — how shapes are drawn.' },
       { sig: 'paint.color: Color', desc: 'The paint color.' },
       { sig: 'paint.thickness: number', desc: 'Stroke width (only applies when style is "stroke").' },
@@ -54,26 +50,25 @@ const API_REFERENCE = [
   {
     title: 'Color',
     entries: [
-      { sig: 'Color.rgb(r: number, g: number, b: number): Color', desc: 'Create a color from RGB (0–1 range).' },
-      { sig: 'Color.rgba(r: number, g: number, b: number, a: number): Color', desc: 'Create a color from RGBA (0–1 range).' },
-      { sig: 'Color.hex(hex: string): Color', desc: 'Create a color from a hex string like "#FF00AA" or "#FF00AA80".' },
+      { sig: 'Color.rgb(r: number, g: number, b: number): Color', desc: 'Create a color from RGB (0–255 range).' },
+      { sig: 'Color.rgba(r: number, g: number, b: number, a: number): Color', desc: 'Create a color from RGBA (0–255 range).' },
       { sig: 'Color.lerp(a: Color, b: Color, t: number): Color', desc: 'Linearly interpolate between two colors.' },
-      { sig: 'color.r / .g / .b / .a: number', desc: 'Read or write individual channels (0–1).' },
+      { sig: 'color.r / .g / .b / .a: number', desc: 'Read or write individual channels.' },
       { sig: 'color.opacity: number', desc: 'Shorthand for the alpha channel.' }
     ]
   },
   {
-    title: 'Vec2D',
+    title: 'Vector',
     entries: [
-      { sig: 'Vec2D.xy(x: number, y: number): Vec2D', desc: 'Create a 2D vector.' },
-      { sig: 'Vec2D.origin(): Vec2D', desc: 'Shorthand for Vec2D.xy(0, 0).' },
-      { sig: 'Vec2D.lerp(a: Vec2D, b: Vec2D, t: number): Vec2D', desc: 'Linearly interpolate between two vectors.' },
+      { sig: 'Vector.xy(x: number, y: number): Vector', desc: 'Create a 2D vector.' },
+      { sig: 'Vector.origin(): Vector', desc: 'Shorthand for Vector.xy(0, 0).' },
+      { sig: 'Vector.lerp(a: Vector, b: Vector, t: number): Vector', desc: 'Linearly interpolate between two vectors.' },
       { sig: 'vec.x / .y: number', desc: 'Read or write components.' },
-      { sig: 'vec:normalized(): Vec2D', desc: 'Return a unit-length copy.' },
+      { sig: 'vec:normalized(): Vector', desc: 'Return a unit-length copy.' },
       { sig: 'vec:length(): number', desc: 'Return the magnitude.' },
-      { sig: 'Vec2D.distance(a: Vec2D, b: Vec2D): number', desc: 'Distance between two points.' },
-      { sig: 'Vec2D.dot(a: Vec2D, b: Vec2D): number', desc: 'Dot product.' },
-      { sig: 'Vec2D.cross(a: Vec2D, b: Vec2D): number', desc: 'Cross product (scalar in 2D).' },
+      { sig: 'Vector.distance(a: Vector, b: Vector): number', desc: 'Distance between two points.' },
+      { sig: 'Vector.dot(a: Vector, b: Vector): number', desc: 'Dot product.' },
+      { sig: 'Vector.cross(a: Vector, b: Vector): number', desc: 'Cross product (scalar in 2D).' },
       { sig: 'a + b, a - b, a * scalar, -a', desc: 'Arithmetic operators are overloaded.' }
     ]
   },
@@ -115,6 +110,19 @@ const API_REFERENCE = [
     ]
   },
   {
+    title: 'Pointer Events',
+    entries: [
+      { sig: 'pointerDown(self, event: PointerEvent)', desc: 'Called when a pointer press occurs on this node.' },
+      { sig: 'pointerMove(self, event: PointerEvent)', desc: 'Called when a pointer moves over this node.' },
+      { sig: 'pointerUp(self, event: PointerEvent)', desc: 'Called when a pointer release occurs on this node.' },
+      { sig: 'pointerExit(self, event: PointerEvent)', desc: 'Called when a pointer leaves this node.' },
+      { sig: 'event.position: Vector', desc: 'Pointer position in local node coordinates.' },
+      { sig: 'event.id: number', desc: 'Pointer identifier for multi-touch.' },
+      { sig: 'event:hit()', desc: 'Consume the event — stops propagation.' },
+      { sig: 'event:hit(true)', desc: 'Mark hit but stay translucent — event continues propagating.' }
+    ]
+  },
+  {
     title: 'Animation',
     entries: [
       { sig: 'animation.duration: number', desc: 'Total duration in seconds.' },
@@ -131,18 +139,17 @@ const API_REFERENCE = [
       { sig: 'artboard.height: number', desc: 'Artboard height in design pixels.' },
       { sig: 'artboard:node(name: string): Node', desc: 'Find a node by name.' },
       { sig: 'artboard:bounds(): AABB', desc: 'Get the artboard bounding box.' },
-      { sig: 'artboard:instance(): Artboard', desc: 'Create a new instance of this artboard.' },
-      { sig: 'artboard:pointerDown(x: number, y: number)', desc: 'Simulate a pointer press.' },
-      { sig: 'artboard:pointerUp(x: number, y: number)', desc: 'Simulate a pointer release.' },
-      { sig: 'artboard:pointerMove(x: number, y: number)', desc: 'Simulate a pointer move.' }
+      { sig: 'artboard:instance(): Artboard', desc: 'Create a new instance of this artboard.' }
     ]
   },
   {
-    title: 'Input & late()',
+    title: 'Lifecycle',
     entries: [
-      { sig: 'Input<T>', desc: 'A reactive binding to a view model property. Has .value and :addListener().' },
-      { sig: 'late(Input<T>): Input<T>', desc: 'Marks an input as late-bound — its value is resolved lazily at access time.' },
-      { sig: 'late(value: T): T', desc: 'Can also wrap plain values for deferred initialization.' }
+      { sig: 'init(self, context: Context) → boolean', desc: 'Called once on creation. Return true for success.' },
+      { sig: 'advance(self, seconds: number) → boolean', desc: 'Called every frame. Return false to stop advancing.' },
+      { sig: 'update(self)', desc: 'Called when any Input<T> value changes. No context parameter.' },
+      { sig: 'draw(self, renderer: Renderer)', desc: 'Called every frame after advance. No context parameter.' },
+      { sig: 'Input<T>', desc: 'Designer-configurable input. Define on type, set default in factory table.' }
     ]
   },
   {

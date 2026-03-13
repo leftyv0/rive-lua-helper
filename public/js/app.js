@@ -52,11 +52,36 @@ async function refreshTab(tab) {
     tab.savedContent = data.content;
     tab.model.setValue(data.content);
     tab.dirty = false;
+    tab.lastModified = data.modified || new Date().toISOString();
+    tab.showingChangeBanner = false;
+    removeChangeBanner();
     renderTabs();
     updateTitle();
     showToast('Refreshed');
   } catch (e) {
     showToast('Refresh failed: ' + e.message, 'error');
+  }
+}
+
+// Git status indicator
+async function updateGitStatus() {
+  const el = document.getElementById('git-status');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/git/status');
+    if (!res.ok) { el.textContent = ''; return; }
+    const data = await res.json();
+    if (data.clean === null) {
+      el.textContent = '';
+    } else if (data.clean) {
+      el.textContent = 'git: clean';
+      el.className = 'git-status clean';
+    } else {
+      el.textContent = `git: ${data.changed} changed`;
+      el.className = 'git-status dirty';
+    }
+  } catch {
+    el.textContent = '';
   }
 }
 
@@ -83,6 +108,10 @@ async function init() {
   document.getElementById('new-script-modal').addEventListener('click', (e) => {
     if (e.target.classList.contains('modal-overlay')) hideNewScriptModal();
   });
+
+  // Git status — check now and every 10 seconds
+  updateGitStatus();
+  setInterval(updateGitStatus, 10000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
