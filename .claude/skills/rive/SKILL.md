@@ -18,87 +18,191 @@ Valid protocol types: `node`, `layout`, `converter`, `path-effect`, `transition-
 
 ---
 
-## Protocol Templates
+## Mental Model
 
-Every Rive script follows a factory-function pattern. The factory returns a table with lifecycle methods. Use the correct pattern for each protocol type.
+Think of a Rive script in three layers:
 
-### Node
-Runs on a node each frame. Access to self, context, and renderer.
+```
+┌─────────────────────────────────────────┐
+│  1. STATE   (your data / fields)        │  ← Defined in a Luau type
+├─────────────────────────────────────────┤
+│  2. LIFECYCLE (init → advance → draw)   │  ← Standalone functions you implement
+├─────────────────────────────────────────┤
+│  3. FACTORY  (return function)          │  ← Rive calls this to create
+│                                         │    a new instance per node
+└─────────────────────────────────────────┘
+```
+
+Key rules:
+- `self` is your state table — store everything you need on it.
+- `init` runs ONCE — set up resources, listeners, initial values. Return `true` on success.
+- `advance` runs EVERY FRAME — update simulation. Return `false` when static.
+- `draw` runs EVERY FRAME (after advance) — render using the Renderer.
+- `update` runs when an `Input<T>` value changes — react to designer inputs.
+- Do NOT mutate a Path and draw it in the same frame.
+- Scripts run in LOCAL transform space of the node — (0,0) is the node's origin.
+
+---
+
+## Inputs vs ViewModel Data
+
+**A. Inputs (`Input<T>`)** — Designer-configurable values set in the Rive editor.
+- Defined as fields typed `Input<T>` on your state type.
+- Given default values in the factory return table.
+- When they change, `update(self)` is called.
+- Accessed directly on self (e.g. `self.speed`).
+- Best for: design-time configuration (size, color, speed, etc.)
+
+**B. ViewModel (`context:viewModel()`)** — Live runtime data bound to the artboard.
+- Retrieved inside `init` via the Context object.
+- Use `addListener` to react to changes, call `context:markNeedsUpdate()` to schedule a re-draw.
+- Best for: dynamic app data (score, username, health, etc.)
 
 ```luau
-return function(artboard: Artboard): Node
-    local node = artboard:node("NodeName")
+local vm = context:viewModel()
+if vm then
+  local health = vm:getNumber("health")
+  if health then
+    health:addListener(function()
+      context:markNeedsUpdate()
+    end)
+  end
+end
+```
 
-    function node:init(context: Context)
-        -- Called once when the script is first attached
-    end
+---
 
-    function node:advance(dt: number, context: Context)
-        -- Called every frame with delta time
-    end
+## Protocol Templates
 
-    function node:update(context: Context)
-        -- Called when the node's transform needs updating
-    end
+Every Rive script defines standalone functions and returns a factory function. The factory returns a table with default field values and lifecycle function references.
 
-    function node:draw(renderer: Renderer, context: Context)
-        -- Called when rendering the node
-    end
+### Node
+Attached to a Node in the artboard. Can draw, animate, and respond to pointer events.
 
-    function node:pointerDown(x: number, y: number, context: Context) end
-    function node:pointerUp(x: number, y: number, context: Context) end
-    function node:pointerMove(x: number, y: number, context: Context) end
+```luau
+type MyNode = {
+    -- Designer-configurable input
+    size: Input<number>,
 
-    return node
+    -- Internal state
+    path: Path,
+    paint: Paint,
+}
+
+function init(self: MyNode, context: Context): boolean
+    self.path:moveTo(Vector.xy(-self.size / 2, -self.size / 2))
+    self.path:lineTo(Vector.xy( self.size / 2, -self.size / 2))
+    self.path:lineTo(Vector.xy( self.size / 2,  self.size / 2))
+    self.path:lineTo(Vector.xy(-self.size / 2,  self.size / 2))
+    self.path:close()
+    return true
+end
+
+function advance(self: MyNode, seconds: number): boolean
+    return false -- static content
+end
+
+function update(self: MyNode)
+    -- Rebuild when designer changes an input
+    self.path:reset()
+    self.path:moveTo(Vector.xy(-self.size / 2, -self.size / 2))
+    self.path:lineTo(Vector.xy( self.size / 2, -self.size / 2))
+    self.path:lineTo(Vector.xy( self.size / 2,  self.size / 2))
+    self.path:lineTo(Vector.xy(-self.size / 2,  self.size / 2))
+    self.path:close()
+end
+
+function draw(self: MyNode, renderer: Renderer)
+    renderer:drawPath(self.path, self.paint)
+end
+
+return function(): Node<MyNode>
+    return {
+        size  = 100,
+        path  = Path.new(),
+        paint = Paint.with({
+            style = "fill",
+            color = Color.rgb(80, 160, 255),
+        }),
+        init    = init,
+        update  = update,
+        advance = advance,
+        draw    = draw,
+    }
 end
 ```
 
 ### Layout
-Extends Node with `measure` and `resize` for custom layout behavior.
+Like a node script but also participates in layout (measure + resize).
 
 ```luau
-return function(artboard: Artboard): Layout
-    local layout = artboard:node("LayoutName")
+type MyLayout = {
+    path: Path,
+    paint: Paint,
+}
 
-    function layout:init(context: Context) end
+function init(self: MyLayout, context: Context): boolean
+    return true
+end
 
-    function layout:measure(width: number, widthMode: LayoutMeasureMode,
-                            height: number, heightMode: LayoutMeasureMode,
-                            context: Context): (number, number)
-        -- widthMode/heightMode: "exactly" | "atMost" | "undefined"
-        return width, height
-    end
+function measure(self: MyLayout, width: number, widthMode: LayoutMeasureMode,
+                 height: number, heightMode: LayoutMeasureMode,
+                 context: Context): (number, number)
+    return width, height
+end
 
-    function layout:resize(width: number, height: number, context: Context)
-        -- Position children after layout resolves
-    end
+function resize(self: MyLayout, width: number, height: number, context: Context)
+    -- Position children after layout resolves
+end
 
-    function layout:advance(dt: number, context: Context) end
-    function layout:update(context: Context) end
-    function layout:draw(renderer: Renderer, context: Context) end
+function advance(self: MyLayout, seconds: number): boolean
+    return false
+end
 
-    return layout
+function update(self: MyLayout) end
+
+function draw(self: MyLayout, renderer: Renderer)
+    renderer:drawPath(self.path, self.paint)
+end
+
+return function(): Layout<MyLayout>
+    return {
+        path    = Path.new(),
+        paint   = Paint.new(),
+        init    = init,
+        measure = measure,
+        resize  = resize,
+        advance = advance,
+        update  = update,
+        draw    = draw,
+    }
 end
 ```
 
 ### Converter
-Transforms values between view model properties and display values.
+Transforms values between ViewModel bindings and display values.
 
 ```luau
-return function(): Converter
-    local converter = {}
+type MyConverter = {}
 
-    function converter:init(context: Context) end
+function init(self: MyConverter, context: Context): boolean
+    return true
+end
 
-    function converter:convert(value: any, context: Context): any
-        return value
-    end
+function convert(self: MyConverter, value: any, context: Context): any
+    return value
+end
 
-    function converter:reverseConvert(value: any, context: Context): any
-        return value
-    end
+function reverseConvert(self: MyConverter, value: any, context: Context): any
+    return value
+end
 
-    return converter
+return function(): Converter<MyConverter>
+    return {
+        init           = init,
+        convert        = convert,
+        reverseConvert = reverseConvert,
+    }
 end
 ```
 
@@ -106,24 +210,35 @@ end
 Modifies paths before rendering (dashes, distortions, etc).
 
 ```luau
-return function(artboard: Artboard): PathEffect
-    local effect = {}
+type MyEffect = {}
 
-    function effect:init(context: Context) end
-    function effect:update(context: Context) end
-    function effect:advance(dt: number, context: Context) end
+function init(self: MyEffect, context: Context): boolean
+    return true
+end
 
-    function effect:effect(path: Path, context: Context): Path
-        local result = Path.new()
-        for _, contour in path:contours() do
-            for _, segment in contour:segments() do
-                -- Process segments
-            end
+function update(self: MyEffect) end
+
+function advance(self: MyEffect, seconds: number): boolean
+    return false
+end
+
+function effect(self: MyEffect, path: Path, context: Context): Path
+    local result = Path.new()
+    for _, contour in path:contours() do
+        for _, segment in contour:segments() do
+            -- Process segments
         end
-        return result
     end
+    return result
+end
 
-    return effect
+return function(): PathEffect<MyEffect>
+    return {
+        init    = init,
+        update  = update,
+        advance = advance,
+        effect  = effect,
+    }
 end
 ```
 
@@ -131,16 +246,21 @@ end
 Evaluates whether a state machine transition should fire.
 
 ```luau
-return function(): TransitionCondition
-    local condition = {}
+type MyCondition = {}
 
-    function condition:init(context: Context) end
+function init(self: MyCondition, context: Context): boolean
+    return true
+end
 
-    function condition:evaluate(context: Context): boolean
-        return false
-    end
+function evaluate(self: MyCondition, context: Context): boolean
+    return false
+end
 
-    return condition
+return function(): TransitionCondition<MyCondition>
+    return {
+        init     = init,
+        evaluate = evaluate,
+    }
 end
 ```
 
@@ -148,16 +268,21 @@ end
 Runs custom logic when a Rive listener event fires.
 
 ```luau
-return function(): ListenerAction
-    local action = {}
+type MyAction = {}
 
-    function action:init(context: Context) end
+function init(self: MyAction, context: Context): boolean
+    return true
+end
 
-    function action:perform(context: Context)
-        -- Runs each time the listener event fires
-    end
+function perform(self: MyAction, context: Context)
+    -- Runs each time the listener event fires
+end
 
-    return action
+return function(): ListenerAction<MyAction>
+    return {
+        init    = init,
+        perform = perform,
+    }
 end
 ```
 
@@ -189,6 +314,19 @@ end
 
 ---
 
+## Lifecycle Reference
+
+| Function | Signature | When called |
+|----------|-----------|-------------|
+| `init` | `(self, context: Context) → boolean` | Once on creation. Return `true` = success. |
+| `advance` | `(self, seconds: number) → boolean` | Every frame. `seconds` = delta time. Return `false` to stop. |
+| `update` | `(self)` | When any `Input<T>` value changes. No context parameter. |
+| `draw` | `(self, renderer: Renderer)` | Every frame after advance. No context parameter. |
+| `measure` | `(self, w, wMode, h, hMode, context) → (number, number)` | Layout only. |
+| `resize` | `(self, w, h, context)` | Layout only. After layout resolves. |
+
+---
+
 ## Full API Reference
 
 ### Renderer
@@ -209,26 +347,22 @@ end
 | Method | Description |
 |--------|-------------|
 | `Path.new(): Path` | Create new empty path |
-| `path:moveTo(x, y)` | Start new contour |
-| `path:lineTo(x, y)` | Add line segment |
-| `path:cubicTo(ox, oy, ix, iy, x, y)` | Add cubic Bezier curve |
+| `path:moveTo(vec: Vector)` | Start new contour at vector position |
+| `path:lineTo(vec: Vector)` | Add line segment to vector position |
+| `path:cubicTo(out: Vector, in: Vector, to: Vector)` | Add cubic Bezier curve |
 | `path:close()` | Close current contour |
-| `path:addRect(x, y, w, h)` | Add rectangle sub-path |
-| `path:addOval(x, y, w, h)` | Add oval sub-path |
-| `path:addRoundRect(x, y, w, h, rx, ry)` | Add rounded rectangle |
+| `path:reset()` | Clear all contours (do NOT reset and draw same frame) |
 | `path:contours(): iterator` | Iterate contours (each has `:segments()`) |
 | `path:measure(): PathMeasure` | Get PathMeasure for positions/tangents |
 | `pathMeasure:length(): number` | Total path length |
-| `pathMeasure:position(distance): Vec2D` | Position at distance |
-| `pathMeasure:tangent(distance): Vec2D` | Tangent at distance |
-| `path:reset()` | Clear all contours |
+| `pathMeasure:position(distance): Vector` | Position at distance |
+| `pathMeasure:tangent(distance): Vector` | Tangent at distance |
 
 ### Paint
 | Method | Description |
 |--------|-------------|
 | `Paint.new(): Paint` | Create paint with defaults |
-| `paint:with({ ... }): Paint` | Copy with modified props (style, color, thickness, join, cap, blendMode) |
-| `paint:copy(): Paint` | Exact copy |
+| `Paint.with({ ... }): Paint` | Create paint with initial props (style, color, thickness, join, cap, blendMode) |
 | `paint.style` | `"fill"` or `"stroke"` |
 | `paint.color` | The paint Color |
 | `paint.thickness` | Stroke width |
@@ -241,25 +375,24 @@ end
 ### Color
 | Method | Description |
 |--------|-------------|
-| `Color.rgb(r, g, b): Color` | From RGB (0-1 range) |
-| `Color.rgba(r, g, b, a): Color` | From RGBA (0-1 range) |
-| `Color.hex(hex: string): Color` | From hex string like `"#FF00AA"` |
+| `Color.rgb(r, g, b): Color` | From RGB (0–255 range) |
+| `Color.rgba(r, g, b, a): Color` | From RGBA (0–255 range, alpha 0–255) |
 | `Color.lerp(a, b, t): Color` | Interpolate between colors |
-| `color.r / .g / .b / .a` | Read/write channels (0-1) |
+| `color.r / .g / .b / .a` | Read/write channels |
 | `color.opacity` | Shorthand for alpha |
 
-### Vec2D
+### Vector
 | Method | Description |
 |--------|-------------|
-| `Vec2D.xy(x, y): Vec2D` | Create 2D vector |
-| `Vec2D.origin(): Vec2D` | Shorthand for (0, 0) |
-| `Vec2D.lerp(a, b, t): Vec2D` | Interpolate between vectors |
+| `Vector.xy(x, y): Vector` | Create 2D vector |
+| `Vector.origin(): Vector` | Shorthand for (0, 0) |
+| `Vector.lerp(a, b, t): Vector` | Interpolate between vectors |
 | `vec.x / .y` | Read/write components |
-| `vec:normalized(): Vec2D` | Unit-length copy |
+| `vec:normalized(): Vector` | Unit-length copy |
 | `vec:length(): number` | Magnitude |
-| `Vec2D.distance(a, b): number` | Distance between points |
-| `Vec2D.dot(a, b): number` | Dot product |
-| `Vec2D.cross(a, b): number` | Cross product (scalar in 2D) |
+| `Vector.distance(a, b): number` | Distance between points |
+| `Vector.dot(a, b): number` | Dot product |
+| `Vector.cross(a, b): number` | Cross product (scalar in 2D) |
 | `a + b, a - b, a * scalar, -a` | Arithmetic operators overloaded |
 
 ### Context
@@ -288,6 +421,14 @@ end
 | `trigger:fire()` | Fire the trigger |
 | `trigger:addListener(callback: () -> ())` | Listen for trigger events |
 
+### Artboard
+| Method | Description |
+|--------|-------------|
+| `artboard.width / .height` | Dimensions in design pixels |
+| `artboard:node(name): Node` | Find node by name |
+| `artboard:bounds(): AABB` | Bounding box |
+| `artboard:instance(): Artboard` | Create new instance |
+
 ### Animation
 | Method | Description |
 |--------|-------------|
@@ -297,23 +438,17 @@ end
 | `animation:setTimeFrames(frame)` | Jump to specific frame |
 | `animation:setTimePercentage(pct)` | Jump to percentage (0-1) |
 
-### Artboard
+### Pointer Events
 | Method | Description |
 |--------|-------------|
-| `artboard.width / .height` | Dimensions in design pixels |
-| `artboard:node(name): Node` | Find node by name |
-| `artboard:bounds(): AABB` | Bounding box |
-| `artboard:instance(): Artboard` | Create new instance |
-| `artboard:pointerDown(x, y)` | Simulate pointer press |
-| `artboard:pointerUp(x, y)` | Simulate pointer release |
-| `artboard:pointerMove(x, y)` | Simulate pointer move |
-
-### Input & late()
-| Method | Description |
-|--------|-------------|
-| `Input<T>` | Reactive binding — has `.value` and `:addListener()` |
-| `late(Input<T>): Input<T>` | Late-bound input, resolved lazily at access time |
-| `late(value: T): T` | Wrap plain values for deferred init |
+| `pointerDown(self, event: PointerEvent)` | Pointer pressed |
+| `pointerMove(self, event: PointerEvent)` | Pointer moved |
+| `pointerUp(self, event: PointerEvent)` | Pointer released |
+| `pointerExit(self, event: PointerEvent)` | Pointer left the node |
+| `event.position: Vector` | Position in local coordinates |
+| `event.id: number` | Pointer identifier |
+| `event:hit()` | Consume the event (stop propagation) |
+| `event:hit(true)` | Mark hit but stay translucent (continue propagating) |
 
 ### Testing
 | Method | Description |
@@ -331,28 +466,23 @@ end
 | `expect:toContain(substring)` | Assert string contains |
 | `expect:toThrow()` | Assert function throws |
 
-### Gradient (applied via Paint)
-| Method | Description |
-|--------|-------------|
-| `paint:linearGradient(sx, sy, ex, ey, colors, stops)` | Linear gradient from (sx,sy) to (ex,ey) |
-| `paint:radialGradient(cx, cy, radius, colors, stops)` | Radial gradient centered at (cx,cy) |
-| `colors: { Color }` | Array of Color values |
-| `stops: { number }` | Array of positions (0-1) per color |
-
 ---
 
-## Key Patterns & Tips
+## Common Pitfalls
 
-1. **Factory pattern**: Every protocol script returns a function that constructs and returns a table of lifecycle methods.
-2. **`late()` sentinel**: Use `late()` to defer initialization of inputs that aren't available at `init` time. The value resolves on first access.
-3. **`context:markNeedsUpdate()`**: Call this when you change state that should trigger a re-render.
-4. **`require` for modules**: Import util scripts with `require("path/to/module")`.
-5. **Type annotations**: Always use Luau type annotations (`x: number`, `-> boolean`, etc.) for clarity and editor support.
-6. **Pointer events**: Only available on Node and Layout protocols. Coordinates are in local node space.
-7. **Paint immutability**: `paint:with()` returns a new Paint — it doesn't mutate. Use it for one-off style variations.
-8. **Path contour iteration**: `path:contours()` yields contours, each with `:segments()` for the actual geometry.
-9. **Renderer save/restore**: Always pair `save()` with `restore()` to avoid transform leaks.
-10. **ViewModel reactivity**: Use `input:addListener()` to respond to data changes rather than polling `.value` every frame.
+- **DO NOT** use `Vec2D` — the correct global is `Vector` (e.g. `Vector.xy(10, 20)`)
+- **DO NOT** use `Color.hex()` — it does not exist. Use `Color.rgb(r, g, b)` with 0–255 values.
+- **DO NOT** pass separate `(x, y)` numbers to `moveTo`/`lineTo` — pass a `Vector`.
+- **DO NOT** mutate a Path and draw it in the same frame — mutate in `advance`/`update`, draw in `draw`.
+- **DO NOT** use `artboard:node()` in the factory — the factory returns a plain table.
+- **DO NOT** add `context` parameter to `update` or `draw` — they don't receive it.
+- **DO NOT** use `rive.` namespace prefix — `Vector`, `Path`, `Paint`, `Color` are direct globals.
+- **DO NOT** use Roblox libraries — Rive Luau is pure Luau.
+- **DO** call `context:markNeedsUpdate()` from a ViewModel listener to trigger a redraw.
+- **DO** use `Input<T>` for designer-editable values, ViewModel for runtime data.
+- **DO** return `false` from `advance` when content is static to save CPU.
+- **DO** use `renderer:save()` / `renderer:restore()` around any transform or clip.
+- **DO** initialize fields (path, paint) with defaults in the factory return table.
 
 ---
 
