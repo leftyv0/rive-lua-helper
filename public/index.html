@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rive Scripts</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-layout" id="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Scripts</span>
+        <button class="new-script-btn" id="new-script-btn">+ New</button>
+      </div>
+      <div class="sidebar-tree" id="script-tree"></div>
+    </aside>
+
+    <!-- Editor Area -->
+    <main class="editor-area">
+      <div class="tab-bar" id="tab-bar"></div>
+      <div id="editor-container"></div>
+      <div class="welcome-screen" id="welcome-screen" style="display: none;">
+        <div class="welcome-title">Rive Scripts Playground</div>
+        <div class="welcome-subtitle">
+          Create and edit Rive Luau scripts with full API reference.<br>
+          Select a script from the sidebar or create a new one to get started.
+        </div>
+        <div class="welcome-shortcuts">
+          <kbd>Ctrl/Cmd+N</kbd> New Script<br>
+          <kbd>Ctrl/Cmd+S</kbd> Save
+        </div>
+      </div>
+      <div class="status-bar">
+        <span id="status-left">Luau</span>
+        <span id="status-right">Rive Scripts Playground</span>
+      </div>
+    </main>
+
+    <!-- API Reference Panel -->
+    <aside class="api-panel" id="api-panel">
+      <div class="api-header">
+        <h3>API Reference</h3>
+        <input type="text" class="api-search" id="api-search" placeholder="Search API...">
+      </div>
+      <div class="api-content" id="api-content"></div>
+    </aside>
+  </div>
+
+  <!-- API Toggle Button -->
+  <button class="api-toggle" id="api-toggle">API &lt;</button>
+
+  <!-- New Script Modal -->
+  <div class="modal-overlay" id="new-script-modal">
+    <div class="modal">
+      <h3>New Script</h3>
+      <div class="modal-field">
+        <label>Protocol Type</label>
+        <select id="new-script-type">
+          <option value="node">Node</option>
+          <option value="layout">Layout</option>
+          <option value="converter">Converter</option>
+          <option value="path-effect">Path Effect</option>
+          <option value="transition-condition">Transition Condition</option>
+          <option value="listener-action">Listener Action</option>
+          <option value="util">Util</option>
+          <option value="test">Test</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Script Name</label>
+        <input type="text" id="new-script-name" placeholder="my-script">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="modal-cancel-btn">Cancel</button>
+        <button class="btn-primary" id="modal-create-btn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts (order matters) -->
+  <script src="js/templates.js"></script>
+  <script src="js/api-client.js"></script>
+  <script src="js/api-panel.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

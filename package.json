@@ -1,0 +1,13 @@
+{
+  "name": "rive-lua-helper",
+  "version": "1.0.0",
+  "description": "Local playground for writing and organizing Rive Luau scripts",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

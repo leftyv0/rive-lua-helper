@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:rive.app)",
+      "WebFetch(domain:help.rive.app)",
+      "WebFetch(domain:uat.rive.app)",
+      "Bash(npm install:*)"
+    ]
+  }
+}
